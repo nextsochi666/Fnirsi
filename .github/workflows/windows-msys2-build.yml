@@ -39,11 +39,12 @@ jobs:
       - name: Prepare required paths for the project build
         run: |
           set -eux
-          mkdir -p /tmp/dla32-build /tmp/dla32-src /opt/dla32
-          ln -sfn "$GITHUB_WORKSPACE" /tmp/dla32-project
-          ln -sfn "$GITHUB_WORKSPACE/src" /tmp/dla32-src
+          rm -rf /tmp/dla32-project /tmp/dla32-src /tmp/dla32-build /opt/dla32
+          mkdir -p /tmp/dla32-build /opt/dla32
+          ln -s "$GITHUB_WORKSPACE" /tmp/dla32-project
+          ln -s "$GITHUB_WORKSPACE/src" /tmp/dla32-src
           ls -ld /tmp/dla32-project /tmp/dla32-src
-          echo "PATH=$PATH"
+          ls -ld /tmp/dla32-src/libsigrokdecode /tmp/dla32-src/libsigrok /tmp/dla32-src/pulseview /tmp/dla32-src/sigrok-cli
 
       - name: Build Windows integration
         run: |
