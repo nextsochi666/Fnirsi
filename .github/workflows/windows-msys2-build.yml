@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        shell: bash
+        shell: msys2 {0}
 
     steps:
       - name: Checkout repository
@@ -23,6 +23,11 @@ jobs:
           update: true
           install: |
             base-devel
+            autoconf
+            automake
+            libtool
+            make
+            pkg-config
             mingw-w64-ucrt-x86_64-toolchain
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
@@ -30,13 +35,8 @@ jobs:
             mingw-w64-ucrt-x86_64-libusb
             mingw-w64-ucrt-x86_64-libzip
             mingw-w64-ucrt-x86_64-libserialport
-            make
-            pkg-config
-            autoconf
-            automake
-            libtool
 
-      - name: Prepare required paths for the project build
+      - name: Prepare project paths
         run: |
           set -eux
           rm -rf /tmp/dla32-project /tmp/dla32-src /tmp/dla32-build /opt/dla32
