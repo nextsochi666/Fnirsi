@@ -1,19 +1,19 @@
 name: Windows MSYS2 build
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
     defaults:
       run:
         shell: msys2 {0}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup MSYS2 UCRT64
@@ -21,42 +21,49 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          install: |
+          install: >-
+            git
             base-devel
-            autoconf
-            automake
-            libtool
-            make
-            pkg-config
             mingw-w64-ucrt-x86_64-toolchain
             mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-glib2
-            mingw-w64-ucrt-x86_64-libusb
-            mingw-w64-ucrt-x86_64-libzip
-            mingw-w64-ucrt-x86_64-libserialport
+            mingw-w64-ucrt-x86_64-pkg-config
+            mingw-w64-ucrt-x86_64-glibmm
+            mingw-w64-ucrt-x86_64-doxygen
 
-      - name: Prepare project paths
+      - name: Show environment
         run: |
-          set -eux
-          rm -rf /tmp/dla32-project /tmp/dla32-src /tmp/dla32-build /opt/dla32
-          mkdir -p /tmp/dla32-build /opt/dla32
-          ln -s "$GITHUB_WORKSPACE" /tmp/dla32-project
-          ln -s "$GITHUB_WORKSPACE/src" /tmp/dla32-src
-          ls -ld /tmp/dla32-project /tmp/dla32-src
-          ls -ld /tmp/dla32-src/libsigrokdecode /tmp/dla32-src/libsigrok /tmp/dla32-src/pulseview /tmp/dla32-src/sigrok-cli
+          echo "MSYSTEM=$MSYSTEM"
+          uname -a
+          gcc --version
+          cmake --version
+          pkg-config --modversion glibmm-2.4 || true
+          pkg-config --modversion libsigrokcxx || true
 
-      - name: Build Windows integration
+      - name: Configure libsigrok C++ bindings
         run: |
-          set -eux
-          export PATH="/opt/dla32/bin:/ucrt64/bin:/usr/bin:$PATH"
-          bash /tmp/dla32-project/tools/build_windows.sh all
+          if [ -f ./configure ]; then
+            ./configure --enable-cxx
+          elif [ -f ./autogen.sh ]; then
+            ./autogen.sh
+            ./configure --enable-cxx
+          else
+            echo "No libsigrok configure script found"
+            exit 1
+          fi
 
-      - name: Upload build artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: fnirsi-windows-build
-          path: |
-            /tmp/dla32-build/**
-            /tmp/dla32-project/**
+      - name: Build libsigrok
+        run: |
+          make -j$(nproc)
+
+      - name: Install libsigrok
+        run: |
+          make install
+
+      - name: Configure dependent project
+        env:
+          PKG_CONFIG_PATH: /ucrt64/lib/pkgconfig:/ucrt64/share/pkgconfig
+        run: |
+          cmake -S . -B build -G "MinGW Makefiles" \
+            -DCMAKE_PREFIX_PATH=/ucrt64 \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
