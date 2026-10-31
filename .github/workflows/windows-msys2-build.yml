@@ -1,4 +1,4 @@
-name: Windows MSYS2 build
+name: Build sigrok + PulseView (Windows/MSYS2)
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
         shell: msys2 {0}
 
     steps:
-      - name: Checkout
+      - name: Checkout current repo
         uses: actions/checkout@v4
 
       - name: Setup MSYS2 UCRT64
@@ -22,48 +22,55 @@ jobs:
           msystem: UCRT64
           update: true
           install: >-
-            git
             base-devel
+            git
+            tar
+            unzip
             mingw-w64-ucrt-x86_64-toolchain
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-pkg-config
             mingw-w64-ucrt-x86_64-glibmm
             mingw-w64-ucrt-x86_64-doxygen
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-qt6-tools
+            mingw-w64-ucrt-x86_64-qt6-svg
 
-      - name: Show environment
+      - name: Show tool versions
         run: |
           echo "MSYSTEM=$MSYSTEM"
           uname -a
           gcc --version
           cmake --version
           pkg-config --modversion glibmm-2.4 || true
-          pkg-config --modversion libsigrokcxx || true
 
-      - name: Configure libsigrok C++ bindings
+      - name: Clone sigrok repos
+        shell: bash
         run: |
-          if [ -f ./configure ]; then
-            ./configure --enable-cxx
-          elif [ -f ./autogen.sh ]; then
-            ./autogen.sh
-            ./configure --enable-cxx
-          else
-            echo "No libsigrok configure script found"
-            exit 1
-          fi
+          git clone --depth 1 https://github.com/sigrokproject/libsigrok.git /tmp/libsigrok
+          git clone --depth 1 https://github.com/sigrokproject/libsigrokdecode.git /tmp/libsigrokdecode
+          git clone --depth 1 https://github.com/sigrokproject/pulseview.git /tmp/pulseview
 
-      - name: Build libsigrok
+      - name: Build and install libsigrok
         run: |
+          cd /tmp/libsigrok
+          ./autogen.sh
+          ./configure --enable-cxx --prefix=/ucrt64
           make -j$(nproc)
-
-      - name: Install libsigrok
-        run: |
           make install
 
-      - name: Configure dependent project
-        env:
-          PKG_CONFIG_PATH: /ucrt64/lib/pkgconfig:/ucrt64/share/pkgconfig
+      - name: Build and install libsigrokdecode
         run: |
-          cmake -S . -B build -G "MinGW Makefiles" \
+          cd /tmp/libsigrokdecode
+          ./autogen.sh
+          ./configure --prefix=/ucrt64
+          make -j$(nproc)
+          make install
+
+      - name: Build PulseView
+        run: |
+          cd /tmp/pulseview
+          cmake -S . -B build \
+            -G "MinGW Makefiles" \
             -DCMAKE_PREFIX_PATH=/ucrt64 \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
